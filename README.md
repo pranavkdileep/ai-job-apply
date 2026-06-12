@@ -1,36 +1,132 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Job Apply
 
-## Getting Started
+> **Draft, tailor, and send job application emails — powered by AI and your Gmail.**
 
-First, run the development server:
+Upload a job description or a poster image, let any LLM (OpenAI, Anthropic, Google, or Vercel AI Gateway) generate a personalized application email, review and edit it, then send it straight from your Gmail inbox.
+
+---
+
+## Features
+
+- **Multi-provider LLM support** — OpenAI, Anthropic, Google Gemini, or Vercel AI Gateway (100+ models).
+- **Smart email generation** — feeds your resume + job details as context for a tailored draft.
+- **Poster image OCR** — upload a job poster image; the LLM extracts company, role, and contact info.
+- **Auto-extract recipient** — the LLM picks up the application email from the job description or image.
+- **Gmail integration** — send directly via your Google account (Gmail API).
+- **PDF resume attachment** — upload a PDF to attach per email (or send without one).
+- **Secure** — API keys stay in your browser's localStorage; they never hit the server database.
+
+---
+
+## Tech Stack
+
+| Layer | Tool |
+|---|---|
+| Framework | [Next.js](https://nextjs.org/) 16 (App Router) |
+| UI | React 19 + [Tailwind CSS 4](https://tailwindcss.com) |
+| AI SDK | [Vercel AI SDK](https://ai-sdk.dev) v6 (`@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`, `@ai-sdk/gateway`) |
+| Auth | Google OAuth 2.0 + Gmail API (`gmail.send` scope) |
+| Database | MongoDB |
+| Email Transport | Nodemailer → Gmail REST API |
+
+---
+
+## Prerequisites
+
+- **Node.js** 18+ and **npm**
+- **MongoDB** instance (local or [Atlas](https://www.mongodb.com/atlas))
+- **Google Cloud project** with the Gmail API enabled and OAuth 2.0 credentials
+
+---
+
+## Setup
+
+### 1. Clone and install
+
+```bash
+git clone <repo-url>
+cd ai-job-apply
+npm install
+```
+
+### 2. Environment variables
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
+
+```env
+# MongoDB connection string
+MONGODB_URI=mongodb://localhost:27017
+
+# Google OAuth credentials (https://console.cloud.google.com)
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+
+# Your app's public URL (used for OAuth redirects)
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+> **Google Cloud setup:** Enable the **Gmail API**, create an OAuth 2.0 Web Client, and add `http://localhost:3000/api/auth/callback` as an authorized redirect URI.
+
+### 3. Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+### 1. Sign in with Google
+Click **Sign in with Google** — grants the app permission to send email on your behalf.
 
-To learn more about Next.js, take a look at the following resources:
+### 2. Save your resume (optional)
+Go to the **Resume** tab and paste your plain-text resume. The AI uses this to tailor the generated email. This is also where you'd upload a PDF resume for attachment later.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Configure an LLM provider
+Go to the **LLM Settings** tab and pick your provider:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **OpenAI** — model like `gpt-4o`, paste your OpenAI API key.
+- **Anthropic** — model like `claude-3-5-sonnet-20240620`, paste your Anthropic API key.
+- **Google** — model like `gemini-1.5-flash`, paste your Google AI Studio key.
+- **Vercel** — model like `openai/gpt-5.5` (provider/model format). Paste your Vercel AI Gateway API key, or leave it blank if you've set `AI_GATEWAY_API_KEY` on the server.
 
-## Deploy on Vercel
+Keys are stored only in your browser's localStorage.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4. Generate an email
+Paste a **job description** or upload a **job poster image**, then click **Generate**. The LLM streams the draft into the review panel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If the job posting includes an application email, the **To:** field is auto-filled.
+
+### 5. Review & send
+Edit the subject, body, and recipient. Optionally upload a **PDF resume** to attach. Click **Send Application Email** — it goes out through your Gmail.
+
+---
+
+## Project Structure
+
+```
+app/
+├── api/
+│   ├── auth/        # Google OAuth login, callback, session, logout
+│   ├── generate/    # LLM streaming endpoint
+│   ├── resume/      # Save/retrieve plain-text resume
+│   └── send-email/  # Gmail API send endpoint
+├── layout.tsx
+└── page.tsx         # Main SPA — generation, review, send
+lib/
+├── db.ts            # MongoDB client
+└── session.ts       # Session helpers
+```
+
+---
+
+## License
+
+MIT
