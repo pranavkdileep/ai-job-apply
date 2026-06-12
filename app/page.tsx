@@ -24,6 +24,10 @@ interface User {
   hasResume: boolean;
 }
 
+type LLMProvider = "openai" | "google" | "anthropic" | "vercel";
+
+const LLM_PROVIDERS: LLMProvider[] = ["openai", "google", "anthropic", "vercel"];
+
 export default function Home() {
   // Authentication & session state
   const [user, setUser] = useState<User | null>(null);
@@ -35,7 +39,7 @@ export default function Home() {
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // LLM Configuration state (localStorage)
-  const [provider, setProvider] = useState<"openai" | "google" | "anthropic">("openai");
+  const [provider, setProvider] = useState<LLMProvider>("openai");
   const [model, setModel] = useState("gpt-4o");
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -77,17 +81,18 @@ export default function Home() {
     const savedModel = localStorage.getItem("ai-job-apply-model");
     const savedKey = localStorage.getItem("ai-job-apply-key");
 
-    if (savedProvider) setProvider(savedProvider as any);
+    if (LLM_PROVIDERS.includes(savedProvider as LLMProvider)) setProvider(savedProvider as LLMProvider);
     if (savedModel) setModel(savedModel);
     if (savedKey) setApiKey(savedKey);
   }, []);
 
   // Update default models when provider changes
-  const handleProviderChange = (newProvider: "openai" | "google" | "anthropic") => {
+  const handleProviderChange = (newProvider: LLMProvider) => {
     setProvider(newProvider);
     if (newProvider === "openai") setModel("gpt-4o");
     if (newProvider === "google") setModel("gemini-1.5-flash");
     if (newProvider === "anthropic") setModel("claude-3-5-sonnet-20240620");
+    if (newProvider === "vercel") setModel("openai/gpt-5.5");
   };
 
   const fetchSession = async () => {
@@ -202,7 +207,7 @@ export default function Home() {
     const savedProvider = localStorage.getItem("ai-job-apply-provider");
     const savedModel = localStorage.getItem("ai-job-apply-model");
 
-    if (!savedKey || !savedProvider || !savedModel) {
+    if (!savedProvider || !savedModel || (savedProvider !== "vercel" && !savedKey)) {
       showNotification("error", "Please configure and save your LLM Settings first.");
       setActiveTab("llm");
       return;
@@ -222,7 +227,7 @@ export default function Home() {
           image,
           provider: savedProvider,
           model: savedModel,
-          apiKey: savedKey,
+          apiKey: savedKey || undefined,
         }),
       });
 
@@ -262,9 +267,9 @@ export default function Home() {
       }
 
       showNotification("success", "Email draft generated successfully!");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showNotification("error", err.message || "Something went wrong during generation.");
+      showNotification("error", err instanceof Error ? err.message : "Something went wrong during generation.");
     } finally {
       setIsGenerating(false);
     }
@@ -788,8 +793,8 @@ export default function Home() {
               {/* Provider Selection */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-zinc-400">LLM Provider</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(["openai", "google", "anthropic"] as const).map((p) => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {LLM_PROVIDERS.map((p) => (
                     <button
                       key={p}
                       type="button"
@@ -800,7 +805,7 @@ export default function Home() {
                           : "bg-zinc-950/40 border-zinc-850 text-zinc-500 hover:text-zinc-350"
                       }`}
                     >
-                      {p}
+                      {p === "vercel" ? "Vercel" : p}
                     </button>
                   ))}
                 </div>
@@ -816,7 +821,9 @@ export default function Home() {
                       ? "gpt-4o"
                       : provider === "google"
                       ? "gemini-1.5-flash"
-                      : "claude-3-5-sonnet-20240620"
+                      : provider === "anthropic"
+                      ? "claude-3-5-sonnet-20240620"
+                      : "openai/gpt-5.5"
                   }
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
@@ -827,20 +834,23 @@ export default function Home() {
                   {provider === "openai" && "* Suggested: gpt-4o, gpt-4o-mini, gpt-4-turbo"}
                   {provider === "google" && "* Suggested: gemini-1.5-flash, gemini-1.5-pro"}
                   {provider === "anthropic" && "* Suggested: claude-3-5-sonnet-20240620, claude-3-haiku-20240307"}
+                  {provider === "vercel" && "* Suggested: openai/gpt-5.5, anthropic/claude-sonnet-4.5, google/gemini-2.5-pro"}
                 </span>
               </div>
 
               {/* API Key */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-zinc-400">API Key</label>
+                <label className="text-xs font-semibold text-zinc-400">
+                  API Key{provider === "vercel" ? " (optional with server AI_GATEWAY_API_KEY)" : ""}
+                </label>
                 <div className="relative">
                   <input
                     type={showKey ? "text" : "password"}
-                    placeholder={`Paste your ${provider.toUpperCase()} API Key...`}
+                    placeholder={`Paste your ${provider === "vercel" ? "Vercel AI Gateway" : provider.toUpperCase()} API Key...`}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     className="w-full bg-zinc-950/60 border border-zinc-800 focus:border-zinc-700 rounded-xl pl-4 pr-11 py-2.5 text-sm outline-none text-zinc-200 transition-colors font-mono"
-                    required
+                    required={provider !== "vercel"}
                   />
                   <button
                     type="button"

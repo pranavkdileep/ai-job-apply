@@ -1,4 +1,5 @@
-import { streamText } from "ai";
+import { createGateway, streamText } from "ai";
+import type { GatewayModelId, LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -12,7 +13,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { jobDescription, image, provider, model, apiKey } = await req.json();
+    const { jobDescription, image, provider, model, apiKey } = (await req.json()) as {
+      jobDescription?: string;
+      image?: string;
+      provider?: string;
+      model?: string;
+      apiKey?: string;
+    };
 
     if (!jobDescription && !image) {
       return NextResponse.json(
@@ -21,14 +28,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!provider || !model || !apiKey) {
+    if (!provider || !model || (provider !== "vercel" && !apiKey)) {
       return NextResponse.json(
         { error: "Missing LLM configuration (provider, model, or API key)." },
         { status: 400 }
       );
     }
 
-    let modelInstance;
+    let modelInstance: LanguageModel;
     try {
       if (provider === "openai") {
         const openai = createOpenAI({ apiKey });
@@ -39,17 +46,23 @@ export async function POST(req: Request) {
       } else if (provider === "anthropic") {
         const anthropic = createAnthropic({ apiKey });
         modelInstance = anthropic(model);
+      } else if (provider === "vercel") {
+        const gatewayModel = model as GatewayModelId;
+        modelInstance = apiKey ? createGateway({ apiKey })(gatewayModel) : gatewayModel;
       } else {
         return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       return NextResponse.json(
-        { error: `Failed to initialize model: ${err.message}` },
+        { error: `Failed to initialize model: ${message}` },
         { status: 400 }
       );
     }
 
-    const contentParts: any[] = [];
+    const contentParts: Array<
+      { type: "text"; text: string } | { type: "image"; image: Buffer | string; mimeType?: string }
+    > = [];
 
     let textPrompt = `Write a highly targeted and professional job application email.\n\n`;
     textPrompt += `Applicant Name: ${user.name}\n`;
@@ -109,8 +122,9 @@ Subject: [Subject here, e.g., Application for [Role] - [Applicant Name]]
     });
 
     return result.toTextStreamResponse();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("AI Generation error:", err);
-    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
