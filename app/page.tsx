@@ -86,6 +86,30 @@ export default function Home() {
     if (savedKey) setApiKey(savedKey);
   }, []);
 
+  // Paste image from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (activeTab !== "generate") return;
+
+      const item = e.clipboardData?.items?.[0];
+      if (!item || !item.type.startsWith("image/")) return;
+
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (!file) return;
+
+      setImageName(`clipboard-${Date.now()}.png`);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [activeTab]);
+
   // Update default models when provider changes
   const handleProviderChange = (newProvider: LLMProvider) => {
     setProvider(newProvider);
@@ -594,7 +618,7 @@ export default function Home() {
                   ) : (
                     <label className="border border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-950/20 hover:bg-zinc-950/40 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200">
                       <Upload className="h-5 w-5 text-zinc-500" />
-                      <span className="text-xs text-zinc-400 font-medium">Click to upload image</span>
+                      <span className="text-xs text-zinc-400 font-medium">Click to upload or paste from clipboard</span>
                       <span className="text-[10px] text-zinc-600">PNG, JPG, or WEBP up to 5MB</span>
                       <input
                         type="file"
