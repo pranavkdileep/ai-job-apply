@@ -106,7 +106,7 @@ export async function POST(req: Request) {
 The email should be professional, concise, and highlight how the applicant's skills match the job requirements.
 note: 
 1.do not include ** , — , and other things that look linke ai generated content
-2.email must contain my education and projects
+2.email must contain my education and projects, and github link if available in resume
 
 Format the output strictly as follows:
 To: [Application email address if found, otherwise leave blank]
