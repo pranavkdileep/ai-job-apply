@@ -91,19 +91,24 @@ export default function Home() {
     const handlePaste = (e: ClipboardEvent) => {
       if (activeTab !== "generate") return;
 
-      const item = e.clipboardData?.items?.[0];
-      if (!item || !item.type.startsWith("image/")) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
 
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (!file) return;
+      for (const item of items) {
+        if (!item.type.startsWith("image/")) continue;
 
-      setImageName(`clipboard-${Date.now()}.png`);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) break;
+
+        setImageName(`clipboard-${Date.now()}-${file.name || "image.png"}`);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        break;
+      }
     };
 
     document.addEventListener("paste", handlePaste);
@@ -618,8 +623,8 @@ export default function Home() {
                   ) : (
                     <label className="border border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-950/20 hover:bg-zinc-950/40 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200">
                       <Upload className="h-5 w-5 text-zinc-500" />
-                      <span className="text-xs text-zinc-400 font-medium">Click to upload or paste from clipboard</span>
-                      <span className="text-[10px] text-zinc-600">PNG, JPG, or WEBP up to 5MB</span>
+                      <span className="text-xs text-zinc-400 font-medium">Click to upload image</span>
+                      <span className="text-[10px] text-zinc-600">PNG, JPG, or WEBP — or paste from clipboard (Ctrl+V / ⌘V)</span>
                       <input
                         type="file"
                         accept="image/*"
