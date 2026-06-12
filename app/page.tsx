@@ -59,7 +59,7 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [subject, setSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
-  const [attachResume, setAttachResume] = useState(true);
+  const [resumePdf, setResumePdf] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   // Load session & local config on mount
@@ -196,6 +196,23 @@ export default function Home() {
     setImageName(null);
   };
 
+  const handleResumePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      showNotification("error", "Please upload a PDF resume.");
+      e.target.value = "";
+      return;
+    }
+
+    setResumePdf(file);
+  };
+
+  const clearResumePdf = () => {
+    setResumePdf(null);
+  };
+
   // Call API to generate email stream
   const generateEmail = async () => {
     if (!jobDescription && !image) {
@@ -249,10 +266,17 @@ export default function Home() {
         accumulatedText += chunk;
         setGeneratedRaw(accumulatedText);
         
-        // Dynamically update subject and body fields for edit panel
-        if (accumulatedText.includes("Subject:")) {
+        // Dynamically update recipient, subject, and body fields for edit panel
+        if (accumulatedText.includes("Subject:") || accumulatedText.includes("To:")) {
           const lines = accumulatedText.split("\n");
-          const subjectLineIndex = lines.findIndex(l => l.startsWith("Subject:"));
+          const recipientLineIndex = lines.findIndex((l) => l.startsWith("To:"));
+          const subjectLineIndex = lines.findIndex((l) => l.startsWith("Subject:"));
+
+          if (recipientLineIndex !== -1) {
+            const extractedRecipient = lines[recipientLineIndex].replace("To:", "").trim();
+            if (extractedRecipient) setRecipient(extractedRecipient);
+          }
+
           if (subjectLineIndex !== -1) {
             const extractedSubject = lines[subjectLineIndex].replace("Subject:", "").trim();
             setSubject(extractedSubject);
@@ -292,15 +316,17 @@ export default function Home() {
 
     setIsSending(true);
     try {
+      const formData = new FormData();
+      formData.append("to", recipient);
+      formData.append("subject", subject);
+      formData.append("body", emailBody);
+      if (resumePdf) {
+        formData.append("resumePdf", resumePdf);
+      }
+
       const res = await fetch("/api/send-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: recipient,
-          subject,
-          body: emailBody,
-          attachResume: attachResume && user?.hasResume,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
@@ -311,6 +337,7 @@ export default function Home() {
         setSubject("");
         setEmailBody("");
         setGeneratedRaw("");
+        setResumePdf(null);
       } else {
         showNotification("error", data.error || "Failed to send email.");
       }
@@ -684,29 +711,42 @@ export default function Home() {
                       />
                     </div>
 
-                    {/* Attach Resume Checkbox */}
-                    {user.hasResume ? (
-                      <label className="flex items-center gap-3 cursor-pointer bg-zinc-950/40 border border-zinc-800/80 px-4 py-3 rounded-xl hover:bg-zinc-950/70 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={attachResume}
-                          onChange={(e) => setAttachResume(e.target.checked)}
-                          className="h-4 w-4 rounded border-zinc-800 text-blue-600 bg-zinc-950 focus:ring-0 focus:ring-offset-0"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-zinc-300">
-                            Attach saved resume
-                          </span>
-                          <span className="text-[10px] text-zinc-500">
-                            Attaches your plain-text resume as "resume.txt"
-                          </span>
+                    {/* Resume PDF Upload */}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold text-zinc-400">Resume PDF Attachment</label>
+                      {resumePdf ? (
+                        <div className="flex items-center justify-between gap-3 bg-zinc-950/40 border border-zinc-800/80 px-4 py-3 rounded-xl">
+                          <div className="min-w-0 flex items-center gap-3">
+                            <FileText className="h-4 w-4 text-zinc-400 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-zinc-300 truncate">{resumePdf.name}</p>
+                              <p className="text-[10px] text-zinc-500">Will be attached as a PDF</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={clearResumePdf}
+                            className="text-zinc-500 hover:text-red-400 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
-                      </label>
-                    ) : (
-                      <div className="bg-zinc-950/20 border border-zinc-800 px-4 py-3 rounded-xl text-[10px] text-zinc-500">
-                        * Resume attachment option will appear once you save your resume in the settings tab.
-                      </div>
-                    )}
+                      ) : (
+                        <label className="flex items-center gap-3 cursor-pointer bg-zinc-950/40 border border-dashed border-zinc-800 px-4 py-3 rounded-xl hover:bg-zinc-950/70 transition-colors">
+                          <Upload className="h-4 w-4 text-zinc-500" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-zinc-300">Upload resume PDF</span>
+                            <span className="text-[10px] text-zinc-500">Optional. Attached only to this email.</span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="application/pdf,.pdf"
+                            onChange={handleResumePdfUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
 
                     {/* Send Button */}
                     <button

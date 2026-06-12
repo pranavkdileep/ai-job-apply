@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     }
 
     if (image) {
-      textPrompt += `Please analyze the attached job poster image to extract the job title, company name, key requirements, and contact email if present.\n\n`;
+      textPrompt += `Please analyze the attached job poster image to extract the job title, company name, key requirements, and application email if present.\n\n`;
     }
 
     contentParts.push({ type: "text", text: textPrompt });
@@ -104,8 +104,12 @@ export async function POST(req: Request) {
 
     const systemPrompt = `You are a professional career assistant. Your goal is to write a highly compelling, tailored job application email.
 The email should be professional, concise, and highlight how the applicant's skills match the job requirements.
+note: 
+1.do not include ** , — , and other things that look linke ai generated content
+2.email must contain my education and projects
 
 Format the output strictly as follows:
+To: [Application email address if found, otherwise leave blank]
 Subject: [Subject here, e.g., Application for [Role] - [Applicant Name]]
 
 [Email Body here]`;

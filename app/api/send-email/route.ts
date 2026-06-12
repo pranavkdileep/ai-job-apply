@@ -65,13 +65,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { to, subject, body, attachResume } = await req.json();
+    const formData = await req.formData();
+    const to = formData.get("to");
+    const subject = formData.get("subject");
+    const body = formData.get("body");
+    const resumePdf = formData.get("resumePdf");
 
-    if (!to || !subject || !body) {
+    if (typeof to !== "string" || typeof subject !== "string" || typeof body !== "string" || !to || !subject || !body) {
       return NextResponse.json(
         { error: "Recipient, subject, and email body are required." },
         { status: 400 }
       );
+    }
+
+    if (resumePdf instanceof File && resumePdf.size > 0 && resumePdf.type !== "application/pdf") {
+      return NextResponse.json({ error: "Resume attachment must be a PDF file." }, { status: 400 });
     }
 
     // Refresh access token if expired
@@ -90,10 +98,12 @@ export async function POST(req: Request) {
     });
 
     const attachments = [];
-    if (attachResume && user.resume) {
+    if (resumePdf instanceof File && resumePdf.size > 0) {
+      const resumeBuffer = Buffer.from(await resumePdf.arrayBuffer());
       attachments.push({
-        filename: "resume.txt",
-        content: user.resume,
+        filename: resumePdf.name || "resume.pdf",
+        content: resumeBuffer,
+        contentType: "application/pdf",
       });
     }
 
@@ -146,7 +156,7 @@ export async function POST(req: Request) {
       recipientEmail: to,
       subject,
       body,
-      resumeAttached: !!(attachResume && user.resume),
+      resumeAttached: attachments.length > 0,
       gmailMessageId: sendResult.id,
       status: "sent",
       sentAt: new Date(),
