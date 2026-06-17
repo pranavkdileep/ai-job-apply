@@ -69,7 +69,12 @@ export default function Home() {
     const savedProvider = localStorage.getItem("ai-job-apply-provider");
     const savedModel = localStorage.getItem("ai-job-apply-model");
     const savedKey = localStorage.getItem("ai-job-apply-key");
-    if (LLM_PROVIDERS.includes(savedProvider as LLMProvider)) setProvider(savedProvider as LLMProvider);
+    if (savedProvider && LLM_PROVIDERS.includes(savedProvider as LLMProvider)) {
+      setProvider(savedProvider as LLMProvider);
+    } else {
+      setProvider("public");
+      localStorage.setItem("ai-job-apply-provider", "public");
+    }
     if (savedModel) setModel(savedModel);
     if (savedKey) setApiKey(savedKey);
   }, []);

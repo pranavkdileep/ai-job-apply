@@ -69,7 +69,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ```
 
-> **Google Cloud setup:** Enable the **Gmail API**, create an OAuth 2.0 Web Client, and add `http://localhost:3000/api/auth/callback` as an authorized redirect URI.
+> **Google Cloud setup:** Enable the **Gmail API**, create an OAuth 2.0 Web Client, and add `http://localhost:3000/api/auth/callback` as an authorized redirect URI. with scope `https://www.googleapis.com/auth/gmail.send`.
 
 ### 3. Run
 
