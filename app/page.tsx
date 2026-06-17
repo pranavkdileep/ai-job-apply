@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Sparkles,
   FileText,
@@ -11,9 +12,9 @@ import {
   X,
   Check,
   Loader2,
-  ArrowRight,
   Eye,
   EyeOff,
+  Trash2,
 } from "lucide-react";
 
 interface User {
@@ -24,9 +25,9 @@ interface User {
   hasResume: boolean;
 }
 
-type LLMProvider = "openai" | "google" | "anthropic" | "vercel";
+type LLMProvider = "public" | "openai" | "google" | "anthropic" | "vercel";
 
-const LLM_PROVIDERS: LLMProvider[] = ["openai", "google", "anthropic", "vercel"];
+const LLM_PROVIDERS: LLMProvider[] = ["public", "openai", "google", "anthropic", "vercel"];
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -36,8 +37,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"generate" | "resume" | "llm">("generate");
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const [provider, setProvider] = useState<LLMProvider>("openai");
-  const [model, setModel] = useState("gpt-4o");
+  const [provider, setProvider] = useState<LLMProvider>("public");
+  const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
 
@@ -55,6 +56,7 @@ export default function Home() {
   const [emailBody, setEmailBody] = useState("");
   const [resumePdf, setResumePdf] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -146,8 +148,32 @@ export default function Home() {
       await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
       showNotification("success", "Logged out successfully.");
-    } catch (err) {
+    } catch {
       showNotification("error", "Logout failed.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirm("Are you sure you want to delete your account? This will permanently remove all your data including resume, sent applications, and OAuth tokens. This action cannot be undone.")) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (res.ok) {
+        setUser(null);
+        setResumeText("");
+        setResumePdf(null);
+        setGeneratedRaw("");
+        showNotification("success", "Account deleted successfully.");
+      } else {
+        const data = await res.json();
+        showNotification("error", data.error || "Failed to delete account.");
+      }
+    } catch {
+      showNotification("error", "Connection error. Failed to delete account.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -176,7 +202,7 @@ export default function Home() {
         const data = await res.json();
         showNotification("error", data.error || "Failed to save resume.");
       }
-    } catch (err) {
+    } catch {
       showNotification("error", "Connection error. Failed to save resume.");
     } finally {
       setSavingResume(false);
@@ -222,7 +248,7 @@ export default function Home() {
     const savedKey = localStorage.getItem("ai-job-apply-key");
     const savedProvider = localStorage.getItem("ai-job-apply-provider");
     const savedModel = localStorage.getItem("ai-job-apply-model");
-    if (!savedProvider || !savedModel || (savedProvider !== "vercel" && !savedKey)) {
+    if (!savedProvider || (savedProvider !== "vercel" && savedProvider !== "public" && !savedKey)) {
       showNotification("error", "Please configure and save your LLM Settings first.");
       setActiveTab("llm");
       return;
@@ -321,7 +347,7 @@ export default function Home() {
       } else {
         showNotification("error", data.error || "Failed to send email.");
       }
-    } catch (err) {
+    } catch {
       showNotification("error", "Connection error. Failed to send email.");
     } finally {
       setIsSending(false);
@@ -348,7 +374,7 @@ export default function Home() {
         <header className="w-full px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-2xl bg-primary-custom flex items-center justify-center shadow-lg" style={{ boxShadow: "0 8px 24px rgba(125, 201, 94, 0.3)" }}>
-              <Sparkles className="w-5 h-5 text-card" />
+              <img src="/icon.png" alt="" className="w-6 h-6" />
             </div>
             <span className="text-xl font-bold tracking-tight text-card">
               AI Job Apply
@@ -379,8 +405,17 @@ export default function Home() {
           <div className="w-full max-w-md bg-card p-8 rounded-[28px] flex flex-col gap-6 shadow-2xl relative">
             <h2 className="text-lg font-bold text-center text-white">Get Started Instantly</h2>
             <p className="text-sm text-center" style={{ color: "#8A8A8A" }}>
-              Sign in with your Google Account. We will request permissions to send emails via Gmail on your behalf.
+              Sign in with your Google Account. We will request permission to send emails via Gmail on your behalf.
             </p>
+            <div className="text-[11px] text-center px-3 py-2.5 rounded-[16px] font-medium" style={{ backgroundColor: "#1a1a1a", color: "#666" }}>
+              <strong className="text-zinc-400">Why we need Gmail access:</strong> The app uses the{" "}
+              <code className="text-primary-custom">gmail.send</code> scope solely to send job application
+              emails you draft through the app. We never read, delete, or manage your inbox.
+              <br />
+              <Link href="/privacy" className="text-primary-custom underline mt-1 inline-block">Privacy Policy</Link>
+              {" · "}
+              <Link href="/terms" className="text-primary-custom underline inline-block">Terms of Service</Link>
+            </div>
             <button
               onClick={handleLogin}
               id="btn-google-login"
@@ -399,6 +434,10 @@ export default function Home() {
 
         <footer className="py-8 text-center text-xs font-medium" style={{ color: "#8A8A8A" }}>
           &copy; {new Date().getFullYear()} AI Job Apply. All rights reserved.
+          <span className="mx-2">·</span>
+          <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+          <span className="mx-2">·</span>
+          <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
         </footer>
       </div>
     );
@@ -408,16 +447,16 @@ export default function Home() {
     <div className="min-h-screen flex flex-col justify-between font-sans relative overflow-hidden" style={{ background: "linear-gradient(135deg, #C7D0C8, #DCE2DC)" }}>
       <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full blur-[100px] pointer-events-none" style={{ backgroundColor: "rgba(125, 201, 94, 0.06)" }} />
 
-      <header className="sticky top-0 z-50 w-full px-6 py-4 backdrop-blur-xl" style={{ backgroundColor: "rgba(14, 14, 14, 0.85)" }}>
+      <header className="sticky top-0 z-50 w-full px-4 sm:px-6 py-3 sm:py-4 backdrop-blur-xl" style={{ backgroundColor: "rgba(14, 14, 14, 0.85)" }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-primary-custom flex items-center justify-center shadow-lg">
-              <Sparkles className="w-4.5 h-4.5 text-card" />
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-2xl bg-primary-custom flex items-center justify-center shadow-lg">
+              <img src="/icon.png" alt="" className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
             </div>
-            <span className="text-lg font-bold text-white tracking-tight">AI Job Apply</span>
+            <span className="text-base sm:text-lg font-bold text-white tracking-tight">AI Job Apply</span>
           </div>
 
-          <nav className="flex items-center p-1.5 rounded-full" style={{ backgroundColor: "#1a1a1a" }}>
+          <nav className="hidden sm:flex items-center p-1.5 rounded-full" style={{ backgroundColor: "#1a1a1a" }}>
             <button
               onClick={() => setActiveTab("generate")}
               className={`px-5 py-2 text-xs font-bold rounded-full transition-all duration-200 flex items-center gap-2 ${
@@ -458,12 +497,12 @@ export default function Home() {
             </button>
           </nav>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full" style={{ backgroundColor: "#1a1a1a" }}>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full" style={{ backgroundColor: "#1a1a1a" }}>
               <img
                 src={user.picture}
                 alt={user.name}
-                className="h-7 w-7 rounded-full border-2 border-primary-custom"
+                className="h-6 w-6 sm:h-7 sm:w-7 rounded-full border-2 border-primary-custom"
               />
               <span className="text-xs font-bold text-white hidden sm:inline">
                 {user.name}
@@ -471,16 +510,24 @@ export default function Home() {
             </div>
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+              className="p-2 sm:p-2.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
               title="Logout"
             >
               <LogOut className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+              className="p-2 sm:p-2.5 rounded-full hover:bg-red-900/30 text-zinc-500 hover:text-coral-custom transition-colors"
+              title="Delete Account"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8 relative z-10 flex flex-col justify-start">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 flex flex-col justify-start pb-28">
         {notification && (
           <div
             className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3.5 rounded-[20px] border shadow-2xl text-sm font-semibold transition-all duration-300 animate-slide-in ${
@@ -770,14 +817,14 @@ export default function Home() {
                 LLM Provider Configurations
               </h2>
               <p className="text-xs mt-1.5 font-medium" style={{ color: "#8A8A8A" }}>
-                Configure your API key and model choice. Keys are saved 100% locally in your browser's local storage and are never uploaded to our server database.
+                Configure your API key and model choice. Keys are saved 100% locally in your browser&apos;s local storage and are never uploaded to our server database.
               </p>
             </div>
 
             <form onSubmit={saveLLMConfig} className="flex flex-col gap-5">
               <div className="flex flex-col gap-3">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">LLM Provider</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {LLM_PROVIDERS.map((p) => (
                     <button
                       key={p}
@@ -790,12 +837,18 @@ export default function Home() {
                       }`}
                       style={{ backgroundColor: provider === p ? undefined : "#1a1a1a" }}
                     >
-                      {p === "vercel" ? "Vercel" : p}
+                      {p === "public" ? "Public" : p === "vercel" ? "Vercel" : p}
                     </button>
                   ))}
                 </div>
+                {provider === "public" && (
+                  <span className="text-[11px] font-medium" style={{ color: "#8A8A8A" }}>
+                    Uses the server-configured OpenAI-compatible API. No API key needed from you.
+                  </span>
+                )}
               </div>
 
+              {provider !== "public" && (
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Model Name</label>
                 <input
@@ -822,11 +875,13 @@ export default function Home() {
                   {provider === "vercel" && "* Suggested: openai/gpt-5.5, anthropic/claude-sonnet-4.5, google/gemini-2.5-pro"}
                 </span>
               </div>
+              )}
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  API Key{provider === "vercel" ? " (optional with server AI_GATEWAY_API_KEY)" : ""}
-                </label>
+              {provider !== "public" && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                    API Key{provider === "vercel" ? " (optional with server AI_GATEWAY_API_KEY)" : ""}
+                  </label>
                 <div className="relative">
                   <input
                     type={showKey ? "text" : "password"}
@@ -846,6 +901,7 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+              )}
 
               <button
                 type="submit"
@@ -859,14 +915,57 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="py-8 px-6" style={{ backgroundColor: "rgba(14, 14, 14, 0.6)" }}>
+      <footer className="hidden sm:block py-8 px-6" style={{ backgroundColor: "rgba(14, 14, 14, 0.6)" }}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 text-xs font-medium" style={{ color: "#8A8A8A" }}>
           <div>&copy; {new Date().getFullYear()} AI Job Apply. All rights reserved.</div>
           <div className="flex gap-4">
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
             <span style={{ color: "#666" }}>Saved: LocalStorage & MongoDB (aijobapply)</span>
           </div>
         </div>
       </footer>
+
+      <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 p-1.5 rounded-full shadow-2xl sm:hidden" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 -4px 30px rgba(0,0,0,0.15)" }}>
+        <button
+          onClick={() => setActiveTab("generate")}
+          className={`relative flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition-all duration-200 ${
+            activeTab === "generate"
+              ? "bg-card text-primary-custom shadow-lg"
+              : "text-zinc-500"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="hidden min-[380px]:inline">Generate</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("resume")}
+          className={`relative flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition-all duration-200 ${
+            activeTab === "resume"
+              ? "bg-card text-primary-custom shadow-lg"
+              : "text-zinc-500"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span className="hidden min-[380px]:inline">Resume</span>
+          {user.hasResume ? (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-primary-custom rounded-full" />
+          ) : (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-yellow-custom rounded-full" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("llm")}
+          className={`relative flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition-all duration-200 ${
+            activeTab === "llm"
+              ? "bg-card text-primary-custom shadow-lg"
+              : "text-zinc-500"
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span className="hidden min-[380px]:inline">Config</span>
+        </button>
+      </nav>
     </div>
   );
 }

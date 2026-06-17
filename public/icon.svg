@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7DC95E"/>
+      <stop offset="100%" stop-color="#5aa83e"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)"/>
+  <!-- Envelope body -->
+  <rect x="12" y="22" width="30" height="22" rx="3" fill="#fff" opacity="0.95"/>
+  <!-- Envelope flap -->
+  <path d="M12 25 L27 36 L42 25" fill="none" stroke="#7DC95E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Rocket body -->
+  <g transform="translate(34, 12) rotate(35)">
+    <ellipse cx="8" cy="14" rx="5" ry="10" fill="#fff"/>
+    <!-- Rocket nose cone -->
+    <path d="M8 2 L5 8 L11 8 Z" fill="#CDC56B"/>
+    <!-- Rocket window -->
+    <circle cx="8" cy="12" r="2.5" fill="#0E0E0E"/>
+    <circle cx="8" cy="11.5" r="1" fill="#fff" opacity="0.6"/>
+    <!-- Rocket fins -->
+    <path d="M3 18 L1 24 L5 21 Z" fill="#D98C8C"/>
+    <path d="M13 18 L15 24 L11 21 Z" fill="#D98C8C"/>
+    <!-- Rocket flame -->
+    <path d="M6 24 L8 30 L10 24" fill="#CDC56B" opacity="0.9"/>
+    <path d="M7 24 L8 28 L9 24" fill="#D98C8C" opacity="0.8"/>
+  </g>
+</svg>

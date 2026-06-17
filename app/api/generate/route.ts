@@ -5,12 +5,21 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { getSessionUser } from "@/lib/session";
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rateLimit";
+
+const MAX_JOB_DESC = 10_000;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = rateLimit(`generate:${user._id}`, 10, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
     }
 
     const { jobDescription, image, provider, model, apiKey } = (await req.json()) as {
@@ -28,34 +37,76 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!provider || !model || (provider !== "vercel" && !apiKey)) {
+    if (jobDescription && jobDescription.length > MAX_JOB_DESC) {
       return NextResponse.json(
-        { error: "Missing LLM configuration (provider, model, or API key)." },
+        { error: `Job description is too long (max ${MAX_JOB_DESC} characters).` },
+        { status: 400 }
+      );
+    }
+
+    if (image) {
+      const matches = image.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        const bytes = Buffer.byteLength(matches[2], "base64");
+        if (bytes > MAX_IMAGE_BYTES) {
+          return NextResponse.json(
+            { error: "Image must be under 5MB." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    if (!provider) {
+      return NextResponse.json(
+        { error: "Missing LLM provider configuration." },
+        { status: 400 }
+      );
+    }
+
+    if (provider !== "vercel" && provider !== "public" && (!model || !apiKey)) {
+      return NextResponse.json(
+        { error: "Missing LLM configuration (model or API key)." },
+        { status: 400 }
+      );
+    }
+
+    if (provider === "vercel" && !model) {
+      return NextResponse.json(
+        { error: "Missing model name." },
         { status: 400 }
       );
     }
 
     let modelInstance: LanguageModel;
     try {
-      if (provider === "openai") {
+      if (provider === "public") {
+        const baseUrl = process.env.PUBLIC_API_BASE_URL;
+        const key = process.env.PUBLIC_API_KEY;
+        const defaultModel = process.env.PUBLIC_API_MODEL;
+        if (!baseUrl) {
+          return NextResponse.json({ error: "Public API is not configured on this server." }, { status: 400 });
+        }
+        const publicOpenAI = createOpenAI({ baseURL: baseUrl, apiKey: key || "no-key" });
+        modelInstance = publicOpenAI(defaultModel || "default");
+      } else if (provider === "openai") {
         const openai = createOpenAI({ apiKey });
-        modelInstance = openai(model);
+        modelInstance = openai(model!);
       } else if (provider === "google") {
         const google = createGoogleGenerativeAI({ apiKey });
-        modelInstance = google(model);
+        modelInstance = google(model!);
       } else if (provider === "anthropic") {
         const anthropic = createAnthropic({ apiKey });
-        modelInstance = anthropic(model);
+        modelInstance = anthropic(model!);
       } else if (provider === "vercel") {
         const gatewayModel = model as GatewayModelId;
         modelInstance = apiKey ? createGateway({ apiKey })(gatewayModel) : gatewayModel;
       } else {
-        return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
+        return NextResponse.json({ error: "Unsupported provider." }, { status: 400 });
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+    } catch {
       return NextResponse.json(
-        { error: `Failed to initialize model: ${message}` },
+        { error: "Failed to initialize LLM provider." },
         { status: 400 }
       );
     }
@@ -126,9 +177,7 @@ Subject: [Subject here, e.g., Application for [Role] - [Applicant Name]]
     });
 
     return result.toTextStreamResponse();
-  } catch (err: unknown) {
-    console.error("AI Generation error:", err);
-    const message = err instanceof Error ? err.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
